@@ -45,15 +45,14 @@ public class MainActivity extends AppCompatActivity {
         List<String> files = new ArrayList<>();
         files.add(TransfmtUtils.getSDCardPath() + "DCIM/Camera/679f6337gy1fr69ynfq3nj20hs0qodh0.jpg");
         files.add(TransfmtUtils.getSDCardPath() + "DCIM/Camera/IMG_20181108_144507.jpg");
-        files.add(TransfmtUtils.getSDCardPath() + "DCIM/Camera/IMG_20181108_143502.jpg");
         files.add(TransfmtUtils.getSDCardPath() + "DCIM/Camera/RED,胡歌 - 逍遥叹（Cover 胡歌）.mp3");
         files.add(TransfmtUtils.getSDCardPath() + "DCIM/Camera/马郁 - 下辈子如果我还记得你.mp3");
-        files.add(TransfmtUtils.getSDCardPath() + "DCIM/Camera/序人Hm - 再见（cover：张震岳）.mp3");
 
         uploadFiles(files, tvKing);
 
         List<String> files1 = new ArrayList<>();
-        files1.add(TransfmtUtils.getSDCardPath() + "DCIM/Camera/体质健康.zip");
+        files1.add(TransfmtUtils.getSDCardPath() + "DCIM/Camera/IMG_20181108_143502.jpg");
+        files1.add(TransfmtUtils.getSDCardPath() + "DCIM/Camera/序人Hm - 再见（cover：张震岳）.mp3");
         uploadFiles(files1, tvKing2);
     }
 
