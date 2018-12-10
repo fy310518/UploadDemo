@@ -27,3 +27,4 @@ Retrofit2 文件上传及其进度显示
         }
     
     
+https://www.jianshu.com/p/0046bd5a10b4 简单说明
