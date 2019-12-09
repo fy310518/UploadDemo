@@ -2,8 +2,8 @@ package com.fy.upload.retrofit.converter;
 
 import android.util.ArrayMap;
 
+import com.fy.upload.retrofit.LoadOnSubscribe;
 import com.fy.upload.retrofit.up.FileProgressRequestBody;
-import com.fy.upload.retrofit.up.UploadOnSubscribe;
 
 import java.io.File;
 import java.io.IOException;
@@ -20,14 +20,14 @@ import retrofit2.Converter;
 public class FileRequestBodyConverter implements Converter<ArrayMap<String, Object>, RequestBody> {
 
     //进度发射器
-    UploadOnSubscribe uploadOnSubscribe;
+    LoadOnSubscribe uploadOnSubscribe;
 
     public FileRequestBodyConverter() {}
 
     @Override
     public RequestBody convert(ArrayMap<String, Object> params) throws IOException {
 
-        uploadOnSubscribe = (UploadOnSubscribe) params.get("UploadOnSubscribe");
+        uploadOnSubscribe = (LoadOnSubscribe) params.get("LoadOnSubscribe");
 
         if (params.containsKey("filePathList")){
             return filesToMultipartBody((List<String>)params.get("filePathList"));

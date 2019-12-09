@@ -1,20 +1,36 @@
 package com.fy.upload.retrofit;
 
 
-import com.fy.upload.retrofit.converter.FileConverterFactory;
-import com.fy.upload.utils.L;
+import android.os.Handler;
+import android.os.Looper;
 
+import com.fy.upload.retrofit.converter.FileConverterFactory;
+import com.fy.upload.retrofit.converter.FileResponseBodyConverter;
+import com.fy.upload.retrofit.down.DownLoadListener;
+import com.fy.upload.retrofit.up.LoadCallBack;
+import com.fy.upload.utils.ConfigUtils;
+import com.fy.upload.utils.FileUtils;
+import com.fy.upload.utils.L;
+import com.fy.upload.utils.SpfAgent;
+
+import java.io.File;
 import java.io.IOException;
 import java.util.Collections;
 import java.util.concurrent.TimeUnit;
 
+import io.reactivex.Observable;
+import io.reactivex.ObservableSource;
+import io.reactivex.android.schedulers.AndroidSchedulers;
 import io.reactivex.disposables.CompositeDisposable;
 import io.reactivex.disposables.Disposable;
+import io.reactivex.functions.Function;
+import io.reactivex.schedulers.Schedulers;
 import okhttp3.Interceptor;
 import okhttp3.OkHttpClient;
 import okhttp3.Protocol;
 import okhttp3.Request;
 import okhttp3.Response;
+import okhttp3.ResponseBody;
 import okhttp3.logging.HttpLoggingInterceptor;
 import retrofit2.Retrofit;
 import retrofit2.adapter.rxjava2.RxJava2CallAdapterFactory;
@@ -82,7 +98,7 @@ public class RequestUtils {
         return new Retrofit.Builder()
                 .addCallAdapterFactory(RxJava2CallAdapterFactory.create())
                 .addConverterFactory(new FileConverterFactory())
-                .addConverterFactory(GsonConverterFactory.create())
+//                .addConverterFactory(GsonConverterFactory.create())
                 .baseUrl("http://www.wanandroid.com")
                 .client(getClient())
                 .build();
@@ -93,12 +109,12 @@ public class RequestUtils {
                 .connectTimeout(60000, TimeUnit.MILLISECONDS)
                 .readTimeout(60000, TimeUnit.MILLISECONDS)
                 .writeTimeout(60000, TimeUnit.MILLISECONDS)
-                .addInterceptor(getHeader())
-                .addNetworkInterceptor(getResponseIntercept())
-                .hostnameVerifier((hostname, session) -> {
-                    return true;//强行返回true 即验证成功
-                })
-                .protocols(Collections.singletonList(Protocol.HTTP_1_1));
+//                .addInterceptor(getHeader())
+                .addNetworkInterceptor(getResponseIntercept());
+//                .hostnameVerifier((hostname, session) -> {
+//                    return true;//强行返回true 即验证成功
+//                })
+//                .protocols(Collections.singletonList(Protocol.HTTP_1_1));
 
         return builder.build();
     }
@@ -139,5 +155,118 @@ public class RequestUtils {
                 return response;
             }
         };
+    }
+
+
+
+    /**
+     * 文件下载
+     * @param url
+     * @param loadListener
+     */
+    public static void downLoadFile(String url, DownLoadListener<File> loadListener){
+        final String filePath = FileUtils.folderIsExists("wan.down", 2).getPath();
+        final File tempFile = FileUtils.getTempFile(url, filePath);
+
+        LoadOnSubscribe loadOnSubscribe = new LoadOnSubscribe();
+
+        Observable<File> downloadObservable = Observable.just(url)
+                .map(new Function<String, String>() {
+                    @Override
+                    public String apply(String downUrl) throws Exception {
+
+                        File targetFile = FileUtils.getFile(downUrl, filePath);
+                        if (targetFile.exists()) {
+                            SpfAgent.init("").saveInt(tempFile.getName() + ConfigUtils.FileDownStatus, 4).commit(false);//下载完成
+                            return "文件已下载";
+                        } else {
+                            return "bytes=" + tempFile.length() + "-";
+                        }
+                    }
+                })
+                .flatMap(new Function<String, ObservableSource<ResponseBody>>() {
+                    @Override
+                    public ObservableSource<ResponseBody> apply(String downParam) throws Exception {
+                        L.e("fy_file_FileDownInterceptor", "文件下载开始---" + Thread.currentThread().getName());
+                        if (downParam.startsWith("bytes=")) {
+                            return RequestUtils.create(LoadService.class).download(downParam, url);
+                        } else {
+                            SpfAgent.init("").saveInt(tempFile.getName() + ConfigUtils.FileDownStatus, 4).commit(false);
+                            return null;
+                        }
+                    }
+                })
+                .map(new Function<ResponseBody, File>() {
+                    @Override
+                    public File apply(ResponseBody responseBody) throws Exception {
+                        try {
+                            //使用反射获得我们自定义的response
+//                            Class aClass = responseBody.getClass();
+//                            Field field = aClass.getDeclaredField("delegate");
+//                            field.setAccessible(true);
+//                            ResponseBody body = (ResponseBody) field.get(responseBody);
+//                            if (body instanceof FileResponseBody) {
+//                                FileResponseBody prBody = ((FileResponseBody) body);
+                            L.e("fy_file_FileDownInterceptor", "文件下载 响应返回---" + Thread.currentThread().getName());
+//                                return FileResponseBodyConverter.saveFile(loadOnSubscribe, prBody, prBody.getDownUrl(), filePath);
+                            return FileResponseBodyConverter.saveFile(loadOnSubscribe, responseBody, url, filePath);
+//                            }
+                        } catch (Exception e) {
+                            e.printStackTrace();
+                        }
+
+                        return null;
+                    }
+                });
+
+
+        Observable.merge(Observable.create(loadOnSubscribe), downloadObservable)
+                .subscribeOn(Schedulers.io())
+                .unsubscribeOn(Schedulers.io())
+                .observeOn(AndroidSchedulers.mainThread())
+                .subscribe(new LoadCallBack<Object>() {
+                    @Override
+                    protected void onProgress(String percent) {
+                        loadListener.onProgress(percent);
+                    }
+
+                    @Override
+                    protected void onSuccess(Object file) {
+                        if (file instanceof File) {
+                            loadListener.onProgress("100");
+
+                            Handler mainHandler = new Handler(Looper.getMainLooper());
+                            mainHandler.post(() -> {
+                                loadListener.onSuccess((File) file);//已在主线程中，可以更新UI
+                            });
+                        }
+                    }
+
+                    @Override
+                    public void onError(Throwable e) {
+                        int FileDownStatus = SpfAgent.init("").getInt(tempFile.getName() + ConfigUtils.FileDownStatus);
+                        if (FileDownStatus == 4) {
+                            File targetFile = FileUtils.getFile(url, filePath);
+                            loadListener.onProgress("100");
+                            loadListener.onSuccess(targetFile);
+                        } else {
+//                            super.onError(e);
+                            SpfAgent.init("").saveInt(tempFile.getName() + ConfigUtils.FileDownStatus, 3).commit(false);
+                            loadListener.onFail();
+                        }
+                    }
+
+                    @Override
+                    public void onComplete() {
+                        super.onComplete();
+
+                        int fileDownStatus = SpfAgent.init("").getInt(tempFile.getName() + ConfigUtils.FileDownStatus);
+                        if (fileDownStatus != 4){
+                            SpfAgent.init("")
+                                    .saveInt(tempFile.getName() + ConfigUtils.FileDownStatus, 3)
+                                    .commit(false);
+                        }
+                    }
+                });
     }
 }

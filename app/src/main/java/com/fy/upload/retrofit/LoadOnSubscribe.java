@@ -1,4 +1,4 @@
-package com.fy.upload.retrofit.up;
+package com.fy.upload.retrofit;
 
 import java.util.concurrent.atomic.AtomicLong;
 
@@ -6,22 +6,27 @@ import io.reactivex.ObservableEmitter;
 import io.reactivex.ObservableOnSubscribe;
 
 /**
- * 文件上传 进度观察者 发射器（计算上传百分比）
- * Created by fangs on 2018/11/12.
+ * 文件上传，下载 进度观察者 发射器（计算上传百分比）
+ * Created by fangs on 2018/5/21.
  */
-public class UploadOnSubscribe implements ObservableOnSubscribe<Double> {
+public class LoadOnSubscribe implements ObservableOnSubscribe<Object> {
 
-    private ObservableEmitter<Double> mObservableEmitter;//进度观察者 发射器
+    private ObservableEmitter<Object> mObservableEmitter;//进度观察者 发射器
     public long mSumLength = 0L;//总长度
     public AtomicLong uploaded = new AtomicLong();//已经上传 长度
 
     private double mPercent = 0;//已经上传进度 百分比
 
-    public UploadOnSubscribe() {}
+    public LoadOnSubscribe() {
+    }
 
     @Override
-    public void subscribe(ObservableEmitter<Double> e) throws Exception {
+    public void subscribe(ObservableEmitter<Object> e) throws Exception {
         this.mObservableEmitter = e;
+    }
+
+    public void setmSumLength(long mSumLength) {
+        this.mSumLength = mSumLength;
     }
 
     public void onRead(long read) {
@@ -38,25 +43,17 @@ public class UploadOnSubscribe implements ObservableOnSubscribe<Double> {
         if (null == mObservableEmitter) return;
         if (percent == mPercent) return;
 
-//        L.e("进度E", (int)percent + "-->" + percent);
         mPercent = percent;
-        if (percent >= 100d) {
-            percent = 100;
-            mObservableEmitter.onNext(percent);
-            mObservableEmitter.onComplete();
-        } else {
-            mObservableEmitter.onNext(percent);
-        }
+        mObservableEmitter.onNext(percent);
     }
 
-    public void setmSumLength(long mSumLength) {
-        this.mSumLength = mSumLength;
-    }
 
     //上传完成 清理进度数据
     public void clean() {
         this.mPercent = 0;
         this.uploaded = new AtomicLong();
         this.mSumLength = 0L;
+
+        mObservableEmitter.onComplete();
     }
 }
